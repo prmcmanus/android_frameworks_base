@@ -30,6 +30,7 @@ import android.location.Country;
 import android.location.CountryDetector;
 import android.net.Uri;
 import android.os.SystemProperties;
+import android.os.PersistableBundle;
 import android.provider.Contacts;
 import android.provider.ContactsContract;
 import android.telecom.PhoneAccount;
@@ -1141,6 +1142,8 @@ public class PhoneNumberUtils
 
     private static final String KOREA_ISO_COUNTRY_CODE = "KR";
 
+    private static final String JAPAN_ISO_COUNTRY_CODE = "JP";
+
     /**
      * Breaks the given number down and formats it according to the rules
      * for the country the number is from.
@@ -1461,15 +1464,25 @@ public class PhoneNumberUtils
         String result = null;
         try {
             PhoneNumber pn = util.parseAndKeepRawInput(phoneNumber, defaultCountryIso);
-            /**
-             * Need to reformat any local Korean phone numbers (when the user is in Korea) with
-             * country code to corresponding national format which would replace the leading
-             * +82 with 0.
-             */
-            if (KOREA_ISO_COUNTRY_CODE.equals(defaultCountryIso) &&
+
+            if (KOREA_ISO_COUNTRY_CODE.equalsIgnoreCase(defaultCountryIso) &&
                     (pn.getCountryCode() == util.getCountryCodeForRegion(KOREA_ISO_COUNTRY_CODE)) &&
                     (pn.getCountryCodeSource() ==
                             PhoneNumber.CountryCodeSource.FROM_NUMBER_WITH_PLUS_SIGN)) {
+                /**
+                 * Need to reformat any local Korean phone numbers (when the user is in Korea) with
+                 * country code to corresponding national format which would replace the leading
+                 * +82 with 0.
+                 */
+                result = util.format(pn, PhoneNumberUtil.PhoneNumberFormat.NATIONAL);
+            } else if (JAPAN_ISO_COUNTRY_CODE.equalsIgnoreCase(defaultCountryIso) &&
+                    pn.getCountryCode() == util.getCountryCodeForRegion(JAPAN_ISO_COUNTRY_CODE) &&
+                    (pn.getCountryCodeSource() ==
+                            PhoneNumber.CountryCodeSource.FROM_NUMBER_WITH_PLUS_SIGN)) {
+                /**
+                 * Need to reformat Japanese phone numbers (when user is in Japan) with the national
+                 * dialing format.
+                 */
                 result = util.format(pn, PhoneNumberUtil.PhoneNumberFormat.NATIONAL);
             } else {
                 result = util.formatInOriginalFormat(pn, defaultCountryIso);
@@ -2127,7 +2140,7 @@ public class PhoneNumberUtils
      *   number provided by the RIL and SIM card. The caller must have
      *   the READ_PHONE_STATE credential.
      *
-     * @param context a non-null {@link Context}.
+     * @param context {@link Context}.
      * @param subId the subscription id of the SIM.
      * @param number the number to look up.
      * @return true if the number is in the list of voicemail. False
@@ -2136,25 +2149,54 @@ public class PhoneNumberUtils
      * @hide
      */
     public static boolean isVoiceMailNumber(Context context, int subId, String number) {
-        String vmNumber;
+        String vmNumber, mdn;
         try {
             final TelephonyManager tm;
             if (context == null) {
                 tm = TelephonyManager.getDefault();
+                if (DBG) log("isVoiceMailNumber: default tm");
             } else {
                 tm = TelephonyManager.from(context);
+                if (DBG) log("isVoiceMailNumber: tm from context");
             }
             vmNumber = tm.getVoiceMailNumber(subId);
+            mdn = tm.getLine1Number(subId);
+            if (DBG) log("isVoiceMailNumber: mdn=" + mdn + ", vmNumber=" + vmNumber
+                    + ", number=" + number);
         } catch (SecurityException ex) {
+            if (DBG) log("isVoiceMailNumber: SecurityExcpetion caught");
             return false;
         }
         // Strip the separators from the number before comparing it
         // to the list.
         number = extractNetworkPortionAlt(number);
+        if (TextUtils.isEmpty(number)) {
+            if (DBG) log("isVoiceMailNumber: number is empty after stripping");
+            return false;
+        }
 
-        // compare tolerates null so we need to make sure that we
-        // don't return true when both are null.
-        return !TextUtils.isEmpty(number) && compare(number, vmNumber);
+        // check if the carrier considers MDN to be an additional voicemail number
+        boolean compareWithMdn = false;
+        if (context != null) {
+            CarrierConfigManager configManager = (CarrierConfigManager)
+                    context.getSystemService(Context.CARRIER_CONFIG_SERVICE);
+            if (configManager != null) {
+                PersistableBundle b = configManager.getConfigForSubId(subId);
+                if (b != null) {
+                    compareWithMdn = b.getBoolean(CarrierConfigManager.
+                            KEY_MDN_IS_ADDITIONAL_VOICEMAIL_NUMBER_BOOL);
+                    if (DBG) log("isVoiceMailNumber: compareWithMdn=" + compareWithMdn);
+                }
+            }
+        }
+
+        if (compareWithMdn) {
+            if (DBG) log("isVoiceMailNumber: treating mdn as additional vm number");
+            return compare(number, vmNumber) || compare(number, mdn);
+        } else {
+            if (DBG) log("isVoiceMailNumber: returning regular compare");
+            return compare(number, vmNumber);
+        }
     }
 
     /**

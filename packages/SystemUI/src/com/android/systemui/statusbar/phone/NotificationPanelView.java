@@ -31,6 +31,7 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.os.PowerManager;
 import android.util.AttributeSet;
+import android.util.EventLog;
 import android.util.MathUtils;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -63,6 +64,7 @@ import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.notification.NotificationUtils;
 import com.android.systemui.statusbar.policy.HeadsUpManager;
 import com.android.systemui.statusbar.policy.KeyguardUserSwitcher;
+import com.android.systemui.statusbar.policy.OnHeadsUpChangedListener;
 import com.android.systemui.statusbar.policy.WeatherController;
 import com.android.systemui.statusbar.policy.WeatherControllerImpl;
 import com.android.systemui.statusbar.stack.NotificationStackScrollLayout;
@@ -74,13 +76,11 @@ import cyanogenmod.weather.util.WeatherUtils;
 
 import java.util.List;
 
-import cyanogenmod.providers.CMSettings;
-
 public class NotificationPanelView extends PanelView implements
         ExpandableView.OnHeightChangedListener,
         View.OnClickListener, NotificationStackScrollLayout.OnOverscrollTopChangedListener,
         KeyguardAffordanceHelper.Callback, NotificationStackScrollLayout.OnEmptySpaceClickListener,
-        HeadsUpManager.OnHeadsUpChangedListener, WeatherController.Callback, TunerService.Tunable {
+        OnHeadsUpChangedListener, WeatherController.Callback, TunerService.Tunable {
 
     private static final boolean DEBUG = false;
 
@@ -101,6 +101,8 @@ public class NotificationPanelView extends PanelView implements
             "cmsystem:" + CMSettings.System.DOUBLE_TAP_SLEEP_GESTURE;
     private static final String LOCK_SCREEN_WEATHER_ENABLED =
             "cmsecure:" + CMSettings.Secure.LOCK_SCREEN_WEATHER_ENABLED;
+    private static final String DOUBLE_TAP_SLEEP_ANYWHERE =
+            "cmsecure:" + CMSettings.Secure.DOUBLE_TAP_SLEEP_ANYWHERE;
 
     private static final Rect mDummyDirtyRect = new Rect(0, 0, 1, 1);
 
@@ -224,6 +226,7 @@ public class NotificationPanelView extends PanelView implements
     private NotificationGroupManager mGroupManager;
 
     private int mOneFingerQuickSettingsIntercept;
+    private boolean mDoubleTapToSleepAnywhere;
     private boolean mDoubleTapToSleepEnabled;
     private int mStatusBarHeaderHeight;
     private GestureDetector mDoubleTapGesture;
@@ -393,7 +396,8 @@ public class NotificationPanelView extends PanelView implements
         TunerService.get(mContext).addTunable(this,
                 STATUS_BAR_QUICK_QS_PULLDOWN,
                 DOUBLE_TAP_SLEEP_GESTURE,
-                LOCK_SCREEN_WEATHER_ENABLED);
+                LOCK_SCREEN_WEATHER_ENABLED,
+                DOUBLE_TAP_SLEEP_ANYWHERE);
     }
 
     @Override
@@ -797,6 +801,9 @@ public class NotificationPanelView extends PanelView implements
         if (mDoubleTapToSleepEnabled
                 && mStatusBarState == StatusBarState.KEYGUARD
                 && event.getY() < mStatusBarHeaderHeight) {
+            mDoubleTapGesture.onTouchEvent(event);
+        } else if (mDoubleTapToSleepAnywhere
+                && mStatusBarState == StatusBarState.KEYGUARD) {
             mDoubleTapGesture.onTouchEvent(event);
         }
         initDownStates(event);
@@ -2409,6 +2416,10 @@ public class NotificationPanelView extends PanelView implements
      * @param keyguardIsShowing whether keyguard is being shown
      */
     public boolean canCameraGestureBeLaunched(boolean keyguardIsShowing) {
+        if (!mStatusBar.isCameraAllowedByAdmin()) {
+            EventLog.writeEvent(0x534e4554, "63787722", -1, "");
+            return false;
+        }
         ResolveInfo resolveInfo = mKeyguardBottomArea.resolveCameraIntent();
         String packageToLaunch = (resolveInfo == null || resolveInfo.activityInfo == null)
                 ? null : resolveInfo.activityInfo.packageName;
@@ -2462,6 +2473,9 @@ public class NotificationPanelView extends PanelView implements
                         && wasKeyguardWeatherEnabled != mKeyguardWeatherEnabled) {
                     onWeatherChanged(mWeatherController.getWeatherInfo());
                 }
+                break;
+            case DOUBLE_TAP_SLEEP_ANYWHERE:
+                mDoubleTapToSleepAnywhere = newValue == null || Integer.parseInt(newValue) == 1;
                 break;
             default:
                 break;

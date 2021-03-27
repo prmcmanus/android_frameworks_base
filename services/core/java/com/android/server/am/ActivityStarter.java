@@ -68,6 +68,7 @@ import static com.android.server.am.ActivityManagerService.ANIMATE;
 import static com.android.server.am.ActivityRecord.APPLICATION_ACTIVITY_TYPE;
 import static com.android.server.am.ActivityRecord.HOME_ACTIVITY_TYPE;
 import static com.android.server.am.ActivityRecord.RECENTS_ACTIVITY_TYPE;
+import static com.android.server.am.ActivityStack.ActivityState.INITIALIZING;
 import static com.android.server.am.ActivityStack.ActivityState.RESUMED;
 import static com.android.server.am.ActivityStack.STACK_INVISIBLE;
 import static com.android.server.am.ActivityStackSupervisor.CREATE_IF_NEEDED;
@@ -128,6 +129,8 @@ import java.util.ArrayList;
  * an activity and associated task and stack.
  */
 class ActivityStarter {
+    public static final int PID_NULL = 0;
+
     private static final String TAG = TAG_WITH_CLASS_NAME ? "ActivityStarter" : TAG_AM;
     private static final String TAG_RESULTS = TAG + POSTFIX_RESULTS;
     private static final String TAG_FOCUS = TAG + POSTFIX_FOCUS;
@@ -439,7 +442,8 @@ class ActivityStarter {
         // If permissions need a review before any of the app components can run, we
         // launch the review activity and pass a pending intent to start the activity
         // we are to launching now after the review is completed.
-        if (Build.PERMISSIONS_REVIEW_REQUIRED && aInfo != null) {
+        if ((mService.mPermissionReviewRequired
+                || Build.PERMISSIONS_REVIEW_REQUIRED) && aInfo != null) {
             if (mService.getPackageManagerInternalLocked().isPermissionsReviewRequired(
                     aInfo.packageName, userId)) {
                 IIntentSender target = mService.getIntentSenderLocked(
@@ -735,12 +739,24 @@ class ActivityStarter {
                 UserHandle.CURRENT);
     }
 
+  final int startActivityMayWait(IApplicationThread caller, int callingUid, String callingPackage,
+            Intent intent, String resolvedType, IVoiceInteractionSession voiceSession,
+            IVoiceInteractor voiceInteractor, IBinder resultTo, String resultWho, int requestCode,
+            int startFlags, ProfilerInfo profilerInfo, IActivityManager.WaitResult outResult,
+            Configuration config, Bundle bOptions, boolean ignoreTargetSecurity, int userId,
+            IActivityContainer iContainer, TaskRecord inTask) {
+        return startActivityMayWait(caller, callingUid, PID_NULL, UserHandle.USER_NULL,
+             callingPackage, intent, resolvedType, voiceSession, voiceInteractor, resultTo,
+             resultWho, requestCode, startFlags, profilerInfo, outResult, config, bOptions,
+             ignoreTargetSecurity, userId, iContainer, inTask);
+    }
+
     final int startActivityMayWait(IApplicationThread caller, int callingUid,
-            String callingPackage, Intent intent, String resolvedType,
-            IVoiceInteractionSession voiceSession, IVoiceInteractor voiceInteractor,
-            IBinder resultTo, String resultWho, int requestCode, int startFlags,
-            ProfilerInfo profilerInfo, IActivityManager.WaitResult outResult, Configuration config,
-            Bundle bOptions, boolean ignoreTargetSecurity, int userId,
+            int requestRealCallingPid, int requestRealCallingUid, String callingPackage,
+            Intent intent, String resolvedType, IVoiceInteractionSession voiceSession,
+            IVoiceInteractor voiceInteractor, IBinder resultTo, String resultWho, int requestCode,
+            int startFlags, ProfilerInfo profilerInfo, IActivityManager.WaitResult outResult,
+            Configuration config, Bundle bOptions, boolean ignoreTargetSecurity, int userId,
             IActivityContainer iContainer, TaskRecord inTask) {
         // Refuse possible leaked file descriptors
         if (intent != null && intent.hasFileDescriptors()) {
@@ -814,8 +830,13 @@ class ActivityStarter {
                 e.printStackTrace();
             }
 
-            final int realCallingPid = Binder.getCallingPid();
-            final int realCallingUid = Binder.getCallingUid();
+            final int realCallingPid = requestRealCallingPid != PID_NULL
+                ? requestRealCallingPid
+                : Binder.getCallingPid();
+            final int realCallingUid = requestRealCallingUid != UserHandle.USER_NULL
+                ? requestRealCallingUid
+                : Binder.getCallingUid();
+
             int callingPid;
             if (callingUid >= 0) {
                 callingPid = -1;
@@ -825,6 +846,7 @@ class ActivityStarter {
             } else {
                 callingPid = callingUid = -1;
             }
+
 
             final ActivityStack stack;
             if (container == null || container.mStack.isOnHomeDisplay()) {
@@ -967,8 +989,16 @@ class ActivityStarter {
     }
 
     final int startActivities(IApplicationThread caller, int callingUid, String callingPackage,
-            Intent[] intents, String[] resolvedTypes, IBinder resultTo,
-            Bundle bOptions, int userId) {
+            Intent[] intents, String[] resolvedTypes, IBinder resultTo, Bundle bOptions,
+            int userId) {
+        return startActivities(caller, callingUid, PID_NULL, UserHandle.USER_NULL, callingPackage,
+             intents, resolvedTypes, resultTo, bOptions, userId);
+    }
+
+    final int startActivities(IApplicationThread caller, int callingUid,
+            int incomingRealCallingPid, int incomingRealCallingUid, String callingPackage,
+            Intent[] intents, String[] resolvedTypes, IBinder resultTo, Bundle bOptions,
+            int userId) {
         if (intents == null) {
             throw new NullPointerException("intents is null");
         }
@@ -979,8 +1009,13 @@ class ActivityStarter {
             throw new IllegalArgumentException("intents are length different than resolvedTypes");
         }
 
-        final int realCallingPid = Binder.getCallingPid();
-        final int realCallingUid = Binder.getCallingUid();
+        final int realCallingPid = incomingRealCallingPid != PID_NULL
+                     ? incomingRealCallingPid
+                     : Binder.getCallingPid();
+
+        final int realCallingUid = incomingRealCallingUid != UserHandle.USER_NULL
+                     ? incomingRealCallingUid
+                     : Binder.getCallingUid();
 
         int callingPid;
         if (callingUid >= 0) {
@@ -991,6 +1026,8 @@ class ActivityStarter {
         } else {
             callingPid = callingUid = -1;
         }
+        boolean forceNewTask = false;
+        final int filterCallingUid = callingUid >= 0 ? callingUid : realCallingUid;
         final long origId = Binder.clearCallingIdentity();
         try {
             synchronized (mService) {
@@ -1010,6 +1047,9 @@ class ActivityStarter {
 
                     // Don't modify the client's object!
                     intent = new Intent(intent);
+                    if (forceNewTask) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    }
 
                     // Collect information about the target of the Intent.
                     ActivityInfo aInfo = mSupervisor.resolveActivity(intent, resolvedTypes[i], 0,
@@ -1035,7 +1075,17 @@ class ActivityStarter {
                         return res;
                     }
 
-                    resultTo = outActivity[0] != null ? outActivity[0].appToken : null;
+                    final ActivityRecord started = outActivity[0];
+                    if (started != null && started.getUid() == filterCallingUid) {
+                        // Only the started activity which has the same uid as the source caller can
+                        // be the caller of next activity.
+                        resultTo = started.appToken;
+                        forceNewTask = false;
+                    } else {
+                        // Different apps not adjacent to the caller are forced to be new task.
+                        resultTo = null;
+                        forceNewTask = true;
+                    }
                 }
             }
         } finally {
@@ -1073,6 +1123,30 @@ class ActivityStarter {
 
         setInitialState(r, options, inTask, doResume, startFlags, sourceRecord, voiceSession,
                 voiceInteractor);
+
+        try {
+            final Intent intent = r.intent;
+            //TODO: This needs to be a flushed out API in the future.
+            boolean isProtected = intent.getComponent() != null
+                    && AppGlobals.getPackageManager()
+                    .isComponentProtected(sourceRecord == null ? "android" :
+                                    sourceRecord.launchedFromPackage, r.launchedFromUid,
+                            intent.getComponent(), r.userId) &&
+                    (intent.getFlags()&Intent.FLAG_GRANT_READ_URI_PERMISSION) == 0;
+
+            if (isProtected && r.state == INITIALIZING) {
+                Message msg = mService.mHandler.obtainMessage(
+                        ActivityManagerService.POST_COMPONENT_PROTECTED_MSG);
+                //Store start flags, userid
+                intent.setFlags(startFlags);
+                intent.putExtra("com.android.settings.PROTECTED_APPS_USER_ID", r.userId);
+                msg.obj = intent;
+                mService.mHandler.sendMessage(msg);
+                return ActivityManager.START_PROTECTED_APP;
+            }
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
 
         computeLaunchingTaskFlags();
 
@@ -1123,6 +1197,10 @@ class ActivityStarter {
                         top.task.setIntent(mStartActivity);
                     }
                     ActivityStack.logStartActivity(AM_NEW_INTENT, mStartActivity, top.task);
+
+                    if (shouldActivityBeBroughtToFront(mReusedActivity)) {
+                        mStartActivity.intent.addFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT);
+                    }
                     top.deliverNewIntentLocked(mCallingUid, mStartActivity.intent,
                             mStartActivity.launchedFromPackage);
                 }
@@ -1555,6 +1633,16 @@ class ActivityStarter {
         return intentActivity;
     }
 
+    private boolean shouldActivityBeBroughtToFront(ActivityRecord intentActivity) {
+        final ActivityStack focusStack = mSupervisor.getFocusedStack();
+        ActivityRecord curTop = (focusStack == null)
+            ? null : focusStack.topRunningNonDelayedActivityLocked(mNotTop);
+
+        return curTop != null
+            && (curTop.task != intentActivity.task || curTop.task != focusStack.topTask())
+            && !mAvoidMoveToFront;
+    }
+
     private ActivityRecord setTargetStackAndMoveToFrontIfNeeded(ActivityRecord intentActivity) {
         mTargetStack = intentActivity.task.stack;
         mTargetStack.mLastPausedActivity = null;
@@ -1563,13 +1651,8 @@ class ActivityStarter {
         // the same behavior as if a new instance was being started, which means not bringing it
         // to the front if the caller is not itself in the front.
         final ActivityStack focusStack = mSupervisor.getFocusedStack();
-        ActivityRecord curTop = (focusStack == null)
-                ? null : focusStack.topRunningNonDelayedActivityLocked(mNotTop);
 
-        if (curTop != null
-                && (curTop.task != intentActivity.task || curTop.task != focusStack.topTask())
-                && !mAvoidMoveToFront) {
-            mStartActivity.intent.addFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT);
+        if (shouldActivityBeBroughtToFront(intentActivity)) {
             if (mSourceRecord == null || (mSourceStack.topActivity() != null &&
                     mSourceStack.topActivity().task == mSourceRecord.task)) {
                 // We really do want to push this one into the user's face, right now.

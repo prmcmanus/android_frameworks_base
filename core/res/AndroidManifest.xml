@@ -104,6 +104,7 @@
     <protected-broadcast android:name="android.app.action.BUGREPORT_SHARING_DECLINED" />
     <protected-broadcast android:name="android.app.action.BUGREPORT_FAILED" />
     <protected-broadcast android:name="android.app.action.BUGREPORT_SHARE" />
+    <protected-broadcast android:name="android.app.action.SHOW_DEVICE_MONITORING_DIALOG" />
 
     <protected-broadcast android:name="android.appwidget.action.APPWIDGET_UPDATE_OPTIONS" />
     <protected-broadcast android:name="android.appwidget.action.APPWIDGET_DELETED" />
@@ -201,6 +202,8 @@
     <protected-broadcast android:name="android.btopp.intent.action.OPEN_INBOUND" />
     <protected-broadcast android:name="android.btopp.intent.action.TRANSFER_COMPLETE" />
     <protected-broadcast android:name="com.android.bluetooth.gatt.REFRESH_BATCHED_SCAN" />
+    <protected-broadcast android:name="android.btopp.intent.action.ACCEPT" />
+    <protected-broadcast android:name="android.btopp.intent.action.DECLINE" />
     <protected-broadcast android:name="com.android.bluetooth.pbap.authchall" />
     <protected-broadcast android:name="com.android.bluetooth.pbap.userconfirmtimeout" />
     <protected-broadcast android:name="com.android.bluetooth.pbap.authresponse" />
@@ -465,6 +468,7 @@
     <protected-broadcast android:name="com.android.server.Wifi.action.TOGGLE_PNO" />
     <protected-broadcast android:name="intent.action.ACTION_RF_BAND_INFO" />
     <protected-broadcast android:name="android.intent.action.MEDIA_RESOURCE_GRANTED" />
+    <protected-broadcast android:name="android.app.action.NETWORK_LOGS_AVAILABLE" />
     <protected-broadcast android:name="android.app.action.SECURITY_LOGS_AVAILABLE" />
 
     <protected-broadcast android:name="android.app.action.INTERRUPTION_FILTER_CHANGED" />
@@ -513,6 +517,10 @@
     <protected-broadcast android:name="com.android.server.retaildemo.ACTION_RESET_DEMO" />
 
     <protected-broadcast android:name="cyanogenmod.intent.action.LID_STATE_CHANGED" />
+
+    <protected-broadcast
+            android:name="com.android.server.policy.PhoneWindowManager.ACTION_TORCH_OFF" />
+
     <!-- ====================================================================== -->
     <!--                          RUNTIME PERMISSIONS                           -->
     <!-- ====================================================================== -->
@@ -729,6 +737,7 @@
         android:priority="400" />
 
     <!-- Allows an app to access precise location.
+         Alternatively, you might want {@link #ACCESS_COARSE_LOCATION}.
          <p>Protection level: dangerous
     -->
     <permission android:name="android.permission.ACCESS_FINE_LOCATION"
@@ -738,6 +747,7 @@
         android:protectionLevel="dangerous" />
 
     <!-- Allows an app to access approximate location.
+         Alternatively, you might want {@link #ACCESS_FINE_LOCATION}.
          <p>Protection level: dangerous
     -->
     <permission android:name="android.permission.ACCESS_COARSE_LOCATION"
@@ -1097,6 +1107,11 @@
     <permission android:name="android.permission.MODIFY_CELL_BROADCASTS"
                 android:protectionLevel="signature|privileged" />
 
+    <!-- Allows an application to authorize outgoing SMS messages.
+         @hide -->
+    <permission android:name="android.permission.AUTHORIZE_OUTGOING_SMS"
+                android:protectionLevel="signature" />
+
     <!-- =============================================================== -->
     <!-- Permissions for setting the device alarm                        -->
     <!-- =============================================================== -->
@@ -1241,6 +1256,13 @@
     <!-- Allows applications to act as network scorers. @hide @SystemApi-->
     <permission android:name="android.permission.SCORE_NETWORKS"
         android:protectionLevel="signature|privileged" />
+
+    <!-- Allows network stack services (Connectivity and Wifi) to coordinate
+         <p>Not for use by third-party or privileged applications.
+         @hide This should only be used by Connectivity and Wifi Services.
+    -->
+    <permission android:name="android.permission.NETWORK_STACK"
+        android:protectionLevel="signature" />
 
     <!-- ======================================= -->
     <!-- Permissions for short range, peripheral networks -->
@@ -1833,8 +1855,7 @@
         android:description="@string/permdesc_install_shortcut"
         android:protectionLevel="normal"/>
 
-    <!-- Allows an application to uninstall a shortcut in Launcher.
-         <p>Protection level: normal
+    <!--This permission is no longer supported.
     -->
     <permission android:name="com.android.launcher.permission.UNINSTALL_SHORTCUT"
         android:label="@string/permlab_uninstall_shortcut"
@@ -2186,6 +2207,15 @@
     -->
     <permission android:name="android.permission.INTERNAL_SYSTEM_WINDOW"
         android:protectionLevel="signature" />
+
+    <!-- @SystemApi Allows an application to use
+        {@link android.view.WindowManager.LayoutsParams#PRIVATE_FLAG_HIDE_NON_SYSTEM_OVERLAY_WINDOWS}
+        to hide non-system-overlay windows.
+        <p>Not for use by third-party applications.
+        @hide
+    -->
+    <permission android:name="android.permission.HIDE_NON_SYSTEM_OVERLAY_WINDOWS"
+        android:protectionLevel="signature|installer" />
 
     <!-- @SystemApi Allows an application to manage (create, destroy,
          Z-order) application tokens in the window manager.
@@ -2724,6 +2754,8 @@
          This is a normal permission: an app requesting it will always be granted the
          permission, without the user needing to approve or see it. -->
     <permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        android:label="@string/permlab_requestIgnoreBatteryOptimizations"
+        android:description="@string/permdesc_requestIgnoreBatteryOptimizations"
         android:protectionLevel="normal" />
 
     <!-- @SystemApi Allows an application to collect battery statistics -->
@@ -3432,10 +3464,13 @@
                  android:permission="android.permission.BIND_JOB_SERVICE" >
         </service>
 
-        <service
-            android:name="com.android.server.pm.BackgroundDexOptService"
-            android:exported="true"
-            android:permission="android.permission.BIND_JOB_SERVICE">
+        <service android:name="com.android.server.pm.BackgroundDexOptService"
+                 android:exported="true"
+                 android:permission="android.permission.BIND_JOB_SERVICE">
+        </service>
+
+        <service android:name="com.android.server.storage.DiskStatsLoggingService"
+                 android:permission="android.permission.BIND_JOB_SERVICE" >
         </service>
 
     </application>

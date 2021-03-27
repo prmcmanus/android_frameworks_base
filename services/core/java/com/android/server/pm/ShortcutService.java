@@ -124,6 +124,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -238,10 +239,19 @@ public class ShortcutService extends IShortcutService.Stub {
 
     private static List<ResolveInfo> EMPTY_RESOLVE_INFO = new ArrayList<>(0);
 
-    private static Predicate<ResolveInfo> ACTIVITY_NOT_EXPORTED =
-            ri -> !ri.activityInfo.exported;
+    // Temporarily reverted to anonymous inner class form due to: b/32554459
+    private static Predicate<ResolveInfo> ACTIVITY_NOT_EXPORTED = new Predicate<ResolveInfo>() {
+        public boolean test(ResolveInfo ri) {
+            return !ri.activityInfo.exported;
+        }
+    };
 
-    private static Predicate<PackageInfo> PACKAGE_NOT_INSTALLED = pi -> !isInstalled(pi);
+    // Temporarily reverted to anonymous inner class form due to: b/32554459
+    private static Predicate<PackageInfo> PACKAGE_NOT_INSTALLED = new Predicate<PackageInfo>() {
+        public boolean test(PackageInfo pi) {
+            return !isInstalled(pi);
+        }
+    };
 
     private final Handler mHandler;
 
@@ -1510,6 +1520,24 @@ public class ShortcutService extends IShortcutService.Stub {
         throw new SecurityException("Calling package name mismatch");
     }
 
+    private void verifyShortcutInfoPackage(String callerPackage, ShortcutInfo si) {
+        if (si == null) {
+            return;
+        }
+        if (!Objects.equals(callerPackage, si.getPackage())) {
+            android.util.EventLog.writeEvent(0x534e4554, "109824443", -1, "");
+            throw new SecurityException("Shortcut package name mismatch");
+        }
+    }
+
+    private void verifyShortcutInfoPackages(
+            String callerPackage, List<ShortcutInfo> list) {
+        final int size = list.size();
+        for (int i = 0; i < size; i++) {
+            verifyShortcutInfoPackage(callerPackage, list.get(i));
+        }
+    }
+
     // Overridden in unit tests to execute r synchronously.
     void injectPostToHandler(Runnable r) {
         mHandler.post(r);
@@ -1638,6 +1666,7 @@ public class ShortcutService extends IShortcutService.Stub {
         verifyCaller(packageName, userId);
 
         final List<ShortcutInfo> newShortcuts = (List<ShortcutInfo>) shortcutInfoList.getList();
+        verifyShortcutInfoPackages(packageName, newShortcuts);
         final int size = newShortcuts.size();
 
         synchronized (mLock) {
@@ -1689,6 +1718,7 @@ public class ShortcutService extends IShortcutService.Stub {
         verifyCaller(packageName, userId);
 
         final List<ShortcutInfo> newShortcuts = (List<ShortcutInfo>) shortcutInfoList.getList();
+        verifyShortcutInfoPackages(packageName, newShortcuts);
         final int size = newShortcuts.size();
 
         synchronized (mLock) {
@@ -1769,6 +1799,7 @@ public class ShortcutService extends IShortcutService.Stub {
         verifyCaller(packageName, userId);
 
         final List<ShortcutInfo> newShortcuts = (List<ShortcutInfo>) shortcutInfoList.getList();
+        verifyShortcutInfoPackages(packageName, newShortcuts);
         final int size = newShortcuts.size();
 
         synchronized (mLock) {
@@ -3723,6 +3754,16 @@ public class ShortcutService extends IShortcutService.Stub {
             if (pkg == null) return null;
 
             return pkg.findShortcutById(shortcutId);
+        }
+    }
+
+    @VisibleForTesting
+    ShortcutLauncher getLauncherShortcutForTest(String packageName, int userId) {
+        synchronized (mLock) {
+            final ShortcutUser user = mUsers.get(userId);
+            if (user == null) return null;
+
+            return user.getAllLaunchersForTest().get(PackageWithUser.of(userId, packageName));
         }
     }
 

@@ -366,6 +366,7 @@ public final class Call {
         private final PhoneAccountHandle mAccountHandle;
         private final int mCallCapabilities;
         private final int mCallProperties;
+        private final int mSupportedAudioRoutes = CallAudioState.ROUTE_ALL;
         private final DisconnectCause mDisconnectCause;
         private final long mCreateTimeMillis;
         private final long mConnectTimeMillis;
@@ -601,6 +602,15 @@ public final class Call {
         }
 
         /**
+         * @return a bitmask of the audio routes available for the call.
+         *
+         * @hide
+         */
+        public int getSupportedAudioRoutes() {
+            return mSupportedAudioRoutes;
+        }
+
+        /**
          * @return For a {@link #STATE_DISCONNECTED} {@code Call}, the disconnect cause expressed
          * by {@link android.telecom.DisconnectCause}.
          */
@@ -754,8 +764,8 @@ public final class Call {
                     parcelableCall.getCapabilities(),
                     parcelableCall.getProperties(),
                     parcelableCall.getDisconnectCause(),
-                    parcelableCall.getConnectTimeMillis(),
                     parcelableCall.getCreateTimeMillis(),
+                    parcelableCall.getConnectTimeMillis(),
                     parcelableCall.getGatewayInfo(),
                     parcelableCall.getVideoState(),
                     parcelableCall.getStatusHints(),

@@ -666,7 +666,7 @@ public class VolumeDialog implements TunerService.Tunable {
 
     private void removeRow(VolumeRow volumeRow) {
         mRows.remove(volumeRow);
-        mDialogContentView.removeView(volumeRow.view);
+        mDialogRowsView.removeView(volumeRow.view);
     }
 
     private void onStateChangedH(State state) {
@@ -769,9 +769,6 @@ public class VolumeDialog implements TunerService.Tunable {
                 && mState.ringerModeInternal == AudioManager.RINGER_MODE_SILENT;
         final boolean isZenAlarms = mState.zenMode == Global.ZEN_MODE_ALARMS;
         final boolean isZenNone = mState.zenMode == Global.ZEN_MODE_NO_INTERRUPTIONS;
-        final boolean isZenPriority = mState.zenMode == Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS;
-        final boolean isRingZenNone = (isRingStream || isSystemStream) && isZenNone;
-        final boolean isRingLimited = isRingStream && isZenPriority;
         final boolean zenMuted = isZenAlarms ? (isRingStream || isSystemStream || isNotificationStream)
                 : isZenNone ? (isRingStream || isSystemStream || isAlarmStream || isMusicStream || isNotificationStream)
                 : isVibrate ? (isNotificationStream)
@@ -797,7 +794,8 @@ public class VolumeDialog implements TunerService.Tunable {
                 isRingVibrate ? R.drawable.ic_volume_ringer_vibrate
                         : isRingSilent || zenMuted ? row.cachedIconRes
                         : ss.routedToBluetooth ?
-                        (ss.muted ? R.drawable.ic_volume_media_bt_mute
+                        ((mAutomute && ss.level == 0) || ss.muted ?
+                                  R.drawable.ic_volume_media_bt_mute
                                 : R.drawable.ic_volume_media_bt)
                         : mAutomute && ss.level == 0 ? row.iconMuteRes
                         : (ss.muted ? row.iconMuteRes : row.iconRes);

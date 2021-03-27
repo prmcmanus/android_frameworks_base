@@ -153,4 +153,14 @@
 
     <!-- Single hand mode -->
     <string name="singlehandmode_click_hint_message">Touch outside the screen to exit single hand mode</string>
+
+    <!-- Strings for tethered notification -->
+    <!-- Shown when the device is tethered -->
+    <string name="tethered_notification_no_device_message">No connected device</string>
+    <string name="tethered_notification_one_device_message"><xliff:g id="count">%1$s</xliff:g> connected device</string>
+    <string name="tethered_notification_multi_device_message"><xliff:g id="count">%1$s</xliff:g> connected devices</string>
+
+    <!-- Zen mode buttons -->
+    <string name="silent_mode_priority">Priority</string>
+    <string name="silent_mode_none">None</string>
 </resources>

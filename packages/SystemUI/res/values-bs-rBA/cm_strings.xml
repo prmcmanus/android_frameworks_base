@@ -4,6 +4,7 @@
 /**
  * Copyright (c) 2009, The Android Open Source Project
  * Copyright (c) 2015, The CyanogenMod Project
+ * Copyright (c) 2017, The LineageOS Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -19,26 +20,28 @@
  */
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <!-- Content description of the light brightness slider (not shown on the screen). [CHAR LIMIT=NONE] -->
-  <!-- Lights settings, LED notification -->
-  <!-- Notification which notifies user flashlight is enabled -->
-  <!-- [CHAR LIMIT=NONE] Importance Tuner setting title -->
-  <!-- Notification importance level title-->
-  <!-- [CHAR LIMIT=100] Notification Importance slider: very low importance level description -->
-  <!-- Screen pinning dialog description (for devices without navbar) -->
-  <!-- Strings for lockscreen shortcut hints -->
-  <!-- Play queue -->
-  <!-- Weather string format in keyguard -->
-  <!-- NavBar Tuner -->
-  <!-- Path data for portrait battery -->
-  <!-- Path data for landscape battery -->
-  <!-- Path data for circle battery -->
-  <!-- Wi-Fi hotspot label when enabled -->
-  <!-- Weather string format in expanded statusbar header -->
-  <!-- Volume stream titles - should match the string-array in AOSP -->
-  <!-- Content description of the data connection type HSPA+ for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
-  <!-- Text to use when the number in a notification info is too large
-         (greater than status_bar_notification_info_maxnum, defined in
-         values/config.xml) and must be truncated.
-         [CHAR LIMIT=4] -->
+    <string name="search">Pretraga</string>
+    <string-array name="volume_stream_titles_lineage">
+        <item>Poziv</item>
+        <item>Sistem</item>
+        <item>Zvono</item>
+        <item>Mediji</item>
+        <item>Alarm</item>
+        <item>Obavjest</item>
+        <item>Bluetooth</item>
+        <item/>
+        <item/>
+        <item/>
+        </string-array>
+    <string name="quick_settings_location_battery_saving_label_twoline">Ušteda\nbaterije</string>
+    <string name="quick_settings_location_gps_only_label_twoline">Samo\nuređaj</string>
+    <string name="quick_settings_location_high_accuracy_label">Visoka preciznost</string>
+    <string name="quick_settings_location_detail_title">Lokacija</string>
+    <string name="quick_settings_location_detail_mode_high_accuracy_title">Visoka preciznost</string>
+    <string name="quick_settings_location_detail_mode_high_accuracy_description">Koristi GPS, Wi\u2011Fi, Bluetooth, ili mobilnu mrežu za utvrđivanje lokacije</string>
+    <string name="quick_settings_location_detail_mode_battery_saving_description">Koristi Wi\u2011Fi, Bluetooth, ili mobilnu mrežu za utvrđivanje lokacije</string>
+    <string name="quick_settings_location_detail_mode_sensors_only_description">Koristi GPS za utvrđivanje vaše lokacije</string>
+    <string name="live_display_off">Isključeno</string>
+    <string name="live_display_day">Dan</string>
+    <string name="live_display_night">Noć</string>
 </resources>

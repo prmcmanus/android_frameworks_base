@@ -50,6 +50,7 @@ import static android.net.NetworkPolicyManager.POLICY_NONE;
 import static android.net.NetworkPolicyManager.POLICY_REJECT_METERED_BACKGROUND;
 import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_DATA;
 import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_WIFI;
+import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_VPN;
 import static android.net.NetworkPolicyManager.RULE_ALLOW_ALL;
 import static android.net.NetworkPolicyManager.RULE_ALLOW_METERED;
 import static android.net.NetworkPolicyManager.MASK_METERED_NETWORKS;
@@ -1024,7 +1025,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
      */
     private void notifyOverLimitNL(NetworkTemplate template) {
         if (!mOverLimitNotified.contains(template)) {
-            mContext.startActivity(buildNetworkOverLimitIntent(template));
+            mContext.startActivity(buildNetworkOverLimitIntent(mContext.getResources(), template));
             mOverLimitNotified.add(template);
         }
     }
@@ -1070,7 +1071,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                 builder.setDeleteIntent(PendingIntent.getBroadcast(
                         mContext, 0, snoozeIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 
-                final Intent viewIntent = buildViewDataUsageIntent(policy.template);
+                final Intent viewIntent = buildViewDataUsageIntent(res, policy.template);
                 builder.setContentIntent(PendingIntent.getActivity(
                         mContext, 0, viewIntent, PendingIntent.FLAG_UPDATE_CURRENT));
 
@@ -1106,7 +1107,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                 builder.setContentTitle(title);
                 builder.setContentText(body);
 
-                final Intent intent = buildNetworkOverLimitIntent(policy.template);
+                final Intent intent = buildNetworkOverLimitIntent(res, policy.template);
                 builder.setContentIntent(PendingIntent.getActivity(
                         mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT));
                 break;
@@ -1141,7 +1142,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                 builder.setContentTitle(title);
                 builder.setContentText(body);
 
-                final Intent intent = buildViewDataUsageIntent(policy.template);
+                final Intent intent = buildViewDataUsageIntent(res, policy.template);
                 builder.setContentIntent(PendingIntent.getActivity(
                         mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT));
                 break;
@@ -3006,6 +3007,7 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
         try {
             mNetworkManager.restrictAppOnWifi(uid, (uidPolicy & POLICY_REJECT_ON_WIFI) != 0);
             mNetworkManager.restrictAppOnData(uid, (uidPolicy & POLICY_REJECT_ON_DATA) != 0);
+            mNetworkManager.restrictAppOnVpn(uid, (uidPolicy & POLICY_REJECT_ON_VPN) != 0);
         } catch (RemoteException e) {
             // ignored; service lives in system_server
         }
@@ -3611,19 +3613,19 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
         return intent;
     }
 
-    private static Intent buildNetworkOverLimitIntent(NetworkTemplate template) {
+    private static Intent buildNetworkOverLimitIntent(Resources res, NetworkTemplate template) {
         final Intent intent = new Intent();
-        intent.setComponent(new ComponentName(
-                "com.android.systemui", "com.android.systemui.net.NetworkOverLimitActivity"));
+        intent.setComponent(ComponentName.unflattenFromString(
+                res.getString(R.string.config_networkOverLimitComponent)));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(EXTRA_NETWORK_TEMPLATE, template);
         return intent;
     }
 
-    private static Intent buildViewDataUsageIntent(NetworkTemplate template) {
+    private static Intent buildViewDataUsageIntent(Resources res, NetworkTemplate template) {
         final Intent intent = new Intent();
-        intent.setComponent(new ComponentName(
-                "com.android.settings", "com.android.settings.Settings$DataUsageSummaryActivity"));
+        intent.setComponent(ComponentName.unflattenFromString(
+                res.getString(R.string.config_dataUsageSummaryComponent)));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(EXTRA_NETWORK_TEMPLATE, template);
         return intent;

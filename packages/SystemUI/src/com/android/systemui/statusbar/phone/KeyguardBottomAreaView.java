@@ -262,7 +262,6 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
         mCameraImageView.setContentDescription(contentDescription);
         mCameraImageView.setDefaultFilter(shouldGrayScale ? mGrayScaleFilter : null);
         updateCameraVisibility();
-        updateLeftButtonVisibility();
     }
 
     private void initAccessibility() {
@@ -291,7 +290,7 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
         lp.width = getResources().getDimensionPixelSize(R.dimen.keyguard_affordance_width);
         lp.height = getResources().getDimensionPixelSize(R.dimen.keyguard_affordance_height);
         mCameraImageView.setLayoutParams(lp);
-        mCameraImageView.setImageDrawable(mContext.getDrawable(R.drawable.ic_camera_alt_24dp));
+        updateRightAffordanceIcon();
 
         lp = mLockIcon.getLayoutParams();
         lp.width = getResources().getDimensionPixelSize(R.dimen.keyguard_affordance_width);
@@ -333,6 +332,7 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
     public void setUserSetupComplete(boolean userSetupComplete) {
         mUserSetupComplete = userSetupComplete;
         updateCameraVisibility();
+        updateRightAffordanceIcon();
         updateLeftButtonVisibility();
         updateLeftAffordanceIcon();
     }
@@ -362,8 +362,10 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
         if (visible) {
             if (isTargetCustom(Shortcuts.LEFT_SHORTCUT)) {
                 visible = !mShortcutHelper.isTargetEmpty(Shortcuts.LEFT_SHORTCUT);
-            } else {
+            } else if (canLaunchVoiceAssist()) {
                 // Display left shortcut
+            } else {
+                visible = isPhoneVisible();
             }
         }
         mLeftAffordanceView.setVisibility(visible ? View.VISIBLE : View.GONE);
@@ -380,7 +382,9 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
                 visible = !mShortcutHelper.isTargetEmpty(Shortcuts.RIGHT_SHORTCUT);
             } else {
                 ResolveInfo resolved = resolveCameraIntent();
-                visible = !isCameraDisabledByDpm() && resolved != null
+                boolean isCameraDisabled =
+                        (mPhoneStatusBar != null) && !mPhoneStatusBar.isCameraAllowedByAdmin();
+                visible = !isCameraDisabled && resolved != null
                         && getResources().getBoolean(R.bool.config_keyguardShowCameraAffordance);
             }
         }
@@ -420,24 +424,6 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
         PackageManager pm = mContext.getPackageManager();
         return pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
                 && pm.resolveActivity(PHONE_INTENT, 0) != null;
-    }
-
-    private boolean isCameraDisabledByDpm() {
-        final DevicePolicyManager dpm =
-                (DevicePolicyManager) getContext().getSystemService(Context.DEVICE_POLICY_SERVICE);
-        if (dpm != null && mPhoneStatusBar != null) {
-            try {
-                final int userId = ActivityManagerNative.getDefault().getCurrentUser().id;
-                final int disabledFlags = dpm.getKeyguardDisabledFeatures(null, userId);
-                final  boolean disabledBecauseKeyguardSecure =
-                        (disabledFlags & DevicePolicyManager.KEYGUARD_DISABLE_SECURE_CAMERA) != 0
-                                && mPhoneStatusBar.isKeyguardSecure();
-                return dpm.getCameraDisabled(null) || disabledBecauseKeyguardSecure;
-            } catch (RemoteException e) {
-                Log.e(TAG, "Can't get userId", e);
-            }
-        }
-        return false;
     }
 
     private void watchForCameraPolicyChanges() {
@@ -827,8 +813,7 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
 
         @Override
         public void onUserUnlocked() {
-            inflateCameraPreview();
-            updateCameraVisibility();
+            updateRightAffordance();
             updateLeftAffordance();
         }
     };
@@ -848,24 +833,21 @@ public class KeyguardBottomAreaView extends FrameLayout implements View.OnClickL
         updateLeftPreview();
     }
 
+    public void updateRightAffordance() {
+        updateRightAffordanceIcon();
+        inflateCameraPreview();
+    }
+
     public void onKeyguardShowingChanged() {
         updateLeftAffordance();
-        inflateCameraPreview();
+        updateRightAffordance();
     }
 
     private String getIndexHint(LockscreenShortcutsHelper.Shortcuts shortcut) {
         if (mShortcutHelper.isTargetCustom(shortcut)) {
-            boolean isRtl = getLayoutDirection() == LAYOUT_DIRECTION_RTL;
             String label = mShortcutHelper.getFriendlyNameForUri(shortcut);
             int resId = 0;
-            switch (shortcut) {
-                case LEFT_SHORTCUT:
-                    resId = isRtl ? R.string.right_shortcut_hint : R.string.left_shortcut_hint;
-                    break;
-                case RIGHT_SHORTCUT:
-                    resId = isRtl ? R.string.left_shortcut_hint : R.string.right_shortcut_hint;
-                    break;
-            }
+            resId = R.string.shortcut_hint;
             return mContext.getString(resId, label);
         } else {
             return null;
